@@ -1,7 +1,5 @@
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
-    }
-}
+mod key_pair_gen;
+pub use key_pair_gen::KeyPair;
+
+mod prelude;
+pub use prelude::Splitable;
