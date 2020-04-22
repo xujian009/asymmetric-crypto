@@ -1,3 +1,4 @@
+use crate::prelude::Splitable;
 use core::fmt::Debug;
 use core::marker::PhantomData;
 use dislog_hal::{Bytes, DisLogPoint, Hasher, Point, Scalar, ScalarNumber};
@@ -21,12 +22,6 @@ pub struct KeyPair<
     public_key: Point<P>,
     code: N,
     _hash: PhantomData<H>,
-}
-
-pub trait Splitable {
-    type Half: Debug + ToHex + FromHex + PartialEq;
-
-    fn split_finalize(self) -> (Self::Half, Self::Half);
 }
 
 impl<
