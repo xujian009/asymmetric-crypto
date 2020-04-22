@@ -5,6 +5,11 @@ use hex::{FromHex, ToHex};
 use rand::RngCore;
 
 #[derive(Debug)]
+pub enum KeyPairError {
+    GenError,
+}
+
+#[derive(Debug)]
 pub struct KeyPair<
     N: Default + AsRef<[u8]> + AsMut<[u8]> + Sized + Debug + ToHex + FromHex + PartialEq + Clone,
     H: Hasher + Default + Splitable<Half = N>,
@@ -31,17 +36,17 @@ impl<
         S: ScalarNumber<Point = P> + Bytes<BytesType = N>,
     > KeyPair<N, H, P, S>
 {
-    pub fn generate<R: RngCore>(rng: &mut R) -> Result<Self, ()> {
+    pub fn generate<R: RngCore>(rng: &mut R) -> Result<Self, KeyPairError> {
         let mut seed = N::default();
         rng.fill_bytes(seed.as_mut());
 
         match Self::generate_from_seed(seed) {
             Ok(x) => Ok(x),
-            Err(_) => return Err(()),
+            Err(_) => return Err(KeyPairError::GenError),
         }
     }
 
-    pub fn generate_from_seed(seed: N) -> Result<Self, ()> {
+    pub fn generate_from_seed(seed: N) -> Result<Self, KeyPairError> {
         let mut hasher = H::default();
         hasher.update(seed.as_ref());
         let (secret_key_x, code) = hasher.split_finalize();
@@ -51,16 +56,20 @@ impl<
             Ok(x) => {
                 secret_key = Scalar { inner: x };
             }
-            Err(_) => return Err(()),
+            Err(_) => return Err(KeyPairError::GenError),
+        }
+
+        if secret_key.inner == S::zero() {
+            return Err(KeyPairError::GenError);
         }
 
         Ok(Self {
-            seed: seed,
+            seed,
             public_key: Point {
                 inner: P::generator(),
             } * &secret_key,
-            secret_key: secret_key,
-            code: code,
+            secret_key,
+            code,
             _hash: PhantomData,
         })
     }
