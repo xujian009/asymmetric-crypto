@@ -7,6 +7,14 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+hex = { version = "0.4", default-features = false }
+rand = "0.7.3"
+tiny-keccak = { version = "2.0.0", features = ["sha3"] }
+dislog-hal = { git = "https://github.com/Yinet-project/dislog-hal"}
+dislog-hal-curve25519 = { git = "https://github.com/Yinet-project/dislog-hal-curve25519"}
+dislog-hal-sm2 = { git = "https://github.com/Yinet-project/dislog-hal-sm2"}
+curve25519-dalek = "2"
+cryptape-sm = { git = "https://github.com/citahub/libsm"}
 
 [dev-dependencies.cargo-husky]
 version = "1"
