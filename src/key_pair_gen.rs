@@ -42,7 +42,7 @@ impl<
 
         match Self::generate_from_seed(seed) {
             Ok(x) => Ok(x),
-            Err(_) => return Err(KeyPairError::GenError),
+            Err(_) => Err(KeyPairError::GenError),
         }
     }
 
