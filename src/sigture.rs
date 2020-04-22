@@ -92,7 +92,7 @@ where
     }
 }
 
-type Sm2_Keypair =
+type Sm2Keypair =
     KeyPair<[u8; 32], LocalSha3, dislog_hal_sm2::PointInner, dislog_hal_sm2::ScalarInner>;
 
 lazy_static! {
@@ -101,11 +101,11 @@ lazy_static! {
         cryptape_sm::sm2::signature::SigCtx::new();
 }
 
-pub fn sm2_gen_keypair(seed: [u8; 32]) -> Result<Sm2_Keypair, KeyPairError> {
-    Sm2_Keypair::generate_from_seed(seed)
+pub fn sm2_gen_keypair(seed: [u8; 32]) -> Result<Sm2Keypair, KeyPairError> {
+    Sm2Keypair::generate_from_seed(seed)
 }
 
-pub fn sm2_signature(msg: &[u8], keypair: &Sm2_Keypair) -> Signature {
+pub fn sm2_signature(msg: &[u8], keypair: &Sm2Keypair) -> Signature {
     let tmp = keypair.get_secret_key().inner.to_bytes();
     let sm2_pri_key = BigUint::from_bytes_le(&tmp[..]);
 
