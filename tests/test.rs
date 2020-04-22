@@ -1,3 +1,4 @@
+use asymmetric_crypto::{sm2_gen_keypair, sm2_signature, sm2_verify};
 use asymmetric_crypto::{KeyPair, Splitable};
 use core::convert::AsRef;
 use core::fmt::Debug;
@@ -197,4 +198,20 @@ fn test_key_pair_sm2_gen() {
             110, 207, 246, 195, 164, 166, 13, 89, 42, 203, 13, 181, 229
         ]
     );
+}
+
+#[test]
+fn test_sm2_sigture() {
+    let data_b = [
+        34, 65, 213, 57, 9, 244, 187, 83, 43, 5, 198, 33, 107, 223, 3, 114, 255, 255, 255, 255,
+        255, 255, 255, 255, 255, 255, 255, 255, 254, 255, 255, 255,
+    ];
+    let info_b = sm2_gen_keypair(data_b).unwrap();
+
+    let text = [244, 187, 83, 43, 5, 198, 33];
+
+    let sig_info = sm2_signature(&text[..], &info_b);
+
+    let ans = sm2_verify(&text[..], &info_b.get_public_key(), &sig_info);
+    assert_eq!(ans, true);
 }
