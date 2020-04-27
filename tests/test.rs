@@ -1,92 +1,9 @@
-use asymmetric_crypto::{sm2_gen_keypair, sm2_signature, sm2_verify};
-use asymmetric_crypto::{KeyPair, Splitable};
+use asymmetric_crypto::{sm2_signature, sm2_verify, KeyPair, Sha3, Sm3};
+use byteorder::{BigEndian, WriteBytesExt};
 use core::convert::AsRef;
-use core::fmt::Debug;
-use dislog_hal::Bytes;
-use hex::{FromHex, FromHexError};
+use dislog_hal::{Bytes, Hasher, Point};
 use rand::rngs::ThreadRng;
 use rand::thread_rng;
-use tiny_keccak::Hasher;
-use tiny_keccak::Sha3;
-
-pub struct NewU864(pub [u8; 64]);
-
-impl Debug for NewU864 {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-        write!(f, "[{:?}]", &self)
-    }
-}
-
-impl PartialEq for NewU864 {
-    fn eq(&self, other: &Self) -> bool {
-        self.0[..32] == other.0[..32] && self.0[32..] == other.0[32..]
-    }
-}
-
-impl FromHex for NewU864 {
-    type Error = FromHexError;
-
-    fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, Self::Error> {
-        match <[u8; 64]>::from_hex(hex) {
-            Ok(x) => Ok(Self(x)),
-            Err(err) => Err(err),
-        }
-    }
-}
-
-impl AsRef<[u8]> for NewU864 {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-pub struct LocalSha3(pub Sha3);
-
-impl Debug for LocalSha3 {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-        write!(f, "[{:?}]", &self)
-    }
-}
-
-impl Default for LocalSha3 {
-    fn default() -> Self {
-        Self(Sha3::v512())
-    }
-}
-
-impl dislog_hal::Hasher for LocalSha3 {
-    type Output = NewU864;
-
-    fn update(&mut self, data: impl AsRef<[u8]>) {
-        self.0.update(data.as_ref());
-    }
-
-    fn finalize(self) -> Self::Output {
-        let mut output = [0u8; 64];
-        self.0.finalize(&mut output);
-        NewU864(output)
-    }
-}
-
-impl Splitable for LocalSha3
-where
-    LocalSha3: dislog_hal::Hasher,
-{
-    type Half = [u8; 32];
-
-    fn split_finalize(self) -> (Self::Half, Self::Half) {
-        use dislog_hal::Hasher;
-
-        let output = self.finalize().0;
-
-        let mut left = [0u8; 32];
-        left.clone_from_slice(&output[..32]);
-        let mut right = [0u8; 32];
-        right.clone_from_slice(&output[32..]);
-
-        (left, right)
-    }
-}
 
 #[test]
 fn test_key_pair_curve25519_gen() {
@@ -94,7 +11,7 @@ fn test_key_pair_curve25519_gen() {
 
     let info_a = KeyPair::<
         [u8; 32],
-        LocalSha3,
+        Sha3,
         dislog_hal_curve25519::PointInner,
         dislog_hal_curve25519::ScalarInner,
     >::generate::<ThreadRng>(&mut rng)
@@ -108,7 +25,7 @@ fn test_key_pair_curve25519_gen() {
     ];
     let info_b = KeyPair::<
         [u8; 32],
-        LocalSha3,
+        Sha3,
         dislog_hal_curve25519::PointInner,
         dislog_hal_curve25519::ScalarInner,
     >::generate_from_seed(data_b)
@@ -150,10 +67,10 @@ fn test_key_pair_sm2_gen() {
 
     let info_a = KeyPair::<
         [u8; 32],
-        LocalSha3,
+        Sha3,
         dislog_hal_sm2::PointInner,
         dislog_hal_sm2::ScalarInner,
-    >::generate::<ThreadRng>(&mut rng)
+    >::generate(&mut rng)
     .unwrap();
 
     println!("test println: {:?}", &info_a);
@@ -164,7 +81,7 @@ fn test_key_pair_sm2_gen() {
     ];
     let info_b = KeyPair::<
         [u8; 32],
-        LocalSha3,
+        Sha3,
         dislog_hal_sm2::PointInner,
         dislog_hal_sm2::ScalarInner,
     >::generate_from_seed(data_b)
@@ -202,16 +119,144 @@ fn test_key_pair_sm2_gen() {
 
 #[test]
 fn test_sm2_sigture() {
+    let mut rng = thread_rng();
     let data_b = [
         34, 65, 213, 57, 9, 244, 187, 83, 43, 5, 198, 33, 107, 223, 3, 114, 255, 255, 255, 255,
         255, 255, 255, 255, 255, 255, 255, 255, 254, 255, 255, 255,
     ];
-    let info_b = sm2_gen_keypair(data_b).unwrap();
+    let info_b = KeyPair::<
+        [u8; 32],
+        Sha3,
+        dislog_hal_sm2::PointInner,
+        dislog_hal_sm2::ScalarInner,
+    >::generate_from_seed(data_b)
+    .unwrap();
 
     let text = [244, 187, 83, 43, 5, 198, 33];
 
-    let sig_info = sm2_signature(&text[..], &info_b);
+    let sig_info = sm2_signature::<
+        [u8; 32],
+        Sm3,
+        dislog_hal_sm2::PointInner,
+        dislog_hal_sm2::ScalarInner,
+        ThreadRng,
+    >(&text[..], &info_b.get_secret_key(), &mut rng)
+    .unwrap();
 
-    let ans = sm2_verify(&text[..], &info_b.get_public_key(), &sig_info);
+    println!("sigture: {:?}", sig_info);
+
+    let ans = sm2_verify::<[u8; 32], Sm3, dislog_hal_sm2::PointInner, dislog_hal_sm2::ScalarInner>(
+        &text[..],
+        &info_b.get_public_key(),
+        &sig_info,
+    );
     assert_eq!(ans, true);
+
+    let mut text_err = [0u8; 7];
+    text_err.copy_from_slice(&Vec::from(&text[..])[..]);
+    text_err[0] += 1;
+
+    let ans = sm2_verify::<[u8; 32], Sm3, dislog_hal_sm2::PointInner, dislog_hal_sm2::ScalarInner>(
+        &text_err[..],
+        &info_b.get_public_key(),
+        &sig_info,
+    );
+    assert_eq!(ans, false);
+}
+
+fn compat_libsm_hash(msg: &[u8], pub_key: &Point<dislog_hal_sm2::PointInner>) -> [u8; 32] {
+    let id = "1234567812345678";
+    let mut prepend: Vec<u8> = Vec::new();
+    if id.len() * 8 > 65535 {
+        panic!("ID is too long.");
+    }
+    prepend
+        .write_u16::<BigEndian>((id.len() * 8) as u16)
+        .unwrap();
+    for c in id.bytes() {
+        prepend.push(c);
+    }
+
+    let mut a = dislog_hal_sm2::ECC_CTX.get_a().to_bytes();
+    let mut b = dislog_hal_sm2::ECC_CTX.get_b().to_bytes();
+
+    prepend.append(&mut a);
+    prepend.append(&mut b);
+
+    let generator = Point::<dislog_hal_sm2::PointInner>::generator();
+
+    let mut x_g = Vec::from(generator.get_x().to_bytes());
+    let mut y_g = Vec::from(generator.get_y().to_bytes());
+    prepend.append(&mut x_g);
+    prepend.append(&mut y_g);
+
+    let mut x_a = Vec::from(pub_key.get_x().to_bytes());
+    let mut y_a = Vec::from(pub_key.get_y().to_bytes());
+    prepend.append(&mut x_a);
+    prepend.append(&mut y_a);
+
+    let mut hasher = Sm3::default();
+    hasher.update(&prepend[..]);
+    let z_a = hasher.finalize();
+
+    // Z_A = HASH_256(ID_LEN || ID || x_G || y_G || x_A || y_A)
+
+    // e = HASH_256(Z_A || M)
+
+    let mut prepended_msg: Vec<u8> = Vec::new();
+    prepended_msg.extend_from_slice(&z_a.as_ref());
+    prepended_msg.extend_from_slice(&msg[..]);
+
+    let mut hasher = Sm3::default();
+    hasher.update(&prepended_msg[..]);
+    hasher.finalize()
+}
+
+#[test]
+fn test_compat_libsm_sigture() {
+    let mut rng = thread_rng();
+    let data_b = [
+        34, 65, 213, 57, 9, 244, 187, 83, 43, 5, 198, 33, 107, 223, 3, 114, 255, 255, 255, 255,
+        255, 255, 255, 255, 255, 255, 255, 255, 254, 255, 255, 255,
+    ];
+    let info_b = KeyPair::<
+        [u8; 32],
+        Sha3,
+        dislog_hal_sm2::PointInner,
+        dislog_hal_sm2::ScalarInner,
+    >::generate_from_seed(data_b)
+    .unwrap();
+
+    let text = [244, 187, 83, 43, 5, 198, 33];
+
+    let msg_wrapper = compat_libsm_hash(&text, &info_b.get_public_key());
+
+    let sig_info = sm2_signature::<
+        [u8; 32],
+        Sm3,
+        dislog_hal_sm2::PointInner,
+        dislog_hal_sm2::ScalarInner,
+        ThreadRng,
+    >(&msg_wrapper[..], &info_b.get_secret_key(), &mut rng)
+    .unwrap();
+
+    println!("sigture: {:?}", sig_info);
+
+    let ans = sm2_verify::<[u8; 32], Sm3, dislog_hal_sm2::PointInner, dislog_hal_sm2::ScalarInner>(
+        &msg_wrapper[..],
+        &info_b.get_public_key(),
+        &sig_info,
+    );
+    assert_eq!(ans, true);
+
+    let mut msg_wrapper_err = [0u8; 32];
+    msg_wrapper_err.copy_from_slice(&Vec::from(&msg_wrapper[..])[..]);
+    msg_wrapper_err[0] += 1;
+
+    let ans = sm2_verify::<[u8; 32], Sm3, dislog_hal_sm2::PointInner, dislog_hal_sm2::ScalarInner>(
+        &msg_wrapper_err[..],
+        &info_b.get_public_key(),
+        &sig_info,
+    );
+    assert_eq!(ans, false);
 }

@@ -1,14 +1,10 @@
 use crate::prelude::Splitable;
+use crate::CryptoError;
 use core::fmt::Debug;
 use core::marker::PhantomData;
 use dislog_hal::{Bytes, DisLogPoint, Hasher, Point, Scalar, ScalarNumber};
 use hex::{FromHex, ToHex};
 use rand::RngCore;
-
-#[derive(Debug)]
-pub enum KeyPairError {
-    GenError,
-}
 
 #[derive(Debug)]
 pub struct KeyPair<
@@ -31,17 +27,17 @@ impl<
         S: ScalarNumber<Point = P> + Bytes<BytesType = N>,
     > KeyPair<N, H, P, S>
 {
-    pub fn generate<R: RngCore>(rng: &mut R) -> Result<Self, KeyPairError> {
+    pub fn generate<R: RngCore>(rng: &mut R) -> Result<Self, CryptoError> {
         let mut seed = N::default();
         rng.fill_bytes(seed.as_mut());
 
         match Self::generate_from_seed(seed) {
             Ok(x) => Ok(x),
-            Err(_) => Err(KeyPairError::GenError),
+            Err(_) => Err(CryptoError::KeyPairGenError),
         }
     }
 
-    pub fn generate_from_seed(seed: N) -> Result<Self, KeyPairError> {
+    pub fn generate_from_seed(seed: N) -> Result<Self, CryptoError> {
         let mut hasher = H::default();
         hasher.update(seed.as_ref());
         let (secret_key_x, code) = hasher.split_finalize();
@@ -51,11 +47,11 @@ impl<
             Ok(x) => {
                 secret_key = Scalar { inner: x };
             }
-            Err(_) => return Err(KeyPairError::GenError),
+            Err(_) => return Err(CryptoError::KeyPairGenError),
         }
 
         if secret_key.inner == S::zero() {
-            return Err(KeyPairError::GenError);
+            return Err(CryptoError::KeyPairGenError);
         }
 
         Ok(Self {

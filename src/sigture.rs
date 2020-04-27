@@ -1,134 +1,101 @@
-use crate::prelude::Splitable;
-use crate::{KeyPair, KeyPairError};
+use crate::CryptoError;
 use core::fmt::Debug;
-use cryptape_sm::sm2::signature::Signature;
-use dislog_hal::{Bytes, Point};
-use dislog_hal_sm2::PointInner;
-use hex::{FromHex, FromHexError};
-use lazy_static::*;
-use num_bigint::BigUint;
-use tiny_keccak::Sha3;
+use dislog_hal::{Bytes, DisLogPoint, Hasher, Point, Scalar, ScalarNumber};
+use hex::{FromHex, ToHex};
+use rand::RngCore;
 
-pub struct NewU864(pub [u8; 64]);
+#[derive(Debug, Clone)]
+pub struct Signature<S: ScalarNumber> {
+    r: Scalar<S>,
+    s: Scalar<S>,
+}
 
-impl Debug for NewU864 {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-        write!(f, "[{:?}]", &self)
+impl<S: ScalarNumber> Signature<S> {
+    pub fn get_r(&self) -> Scalar<S> {
+        self.r.clone()
+    }
+
+    pub fn get_s(&self) -> Scalar<S> {
+        self.s.clone()
     }
 }
 
-impl PartialEq for NewU864 {
-    fn eq(&self, other: &Self) -> bool {
-        self.0[..32] == other.0[..32] && self.0[32..] == other.0[32..]
-    }
-}
+pub fn sm2_signature<
+    N: Default + AsRef<[u8]> + AsMut<[u8]> + Sized + Debug + ToHex + FromHex + PartialEq + Clone,
+    H2: Hasher<Output = N> + Default,
+    P: DisLogPoint<Scalar = S> + Bytes,
+    S: ScalarNumber<Point = P> + Bytes<BytesType = N>,
+    R: RngCore,
+>(
+    msg_wrapper: &[u8],
+    pri_key: &Scalar<S>,
+    rng: &mut R,
+) -> Result<Signature<S>, CryptoError> {
+    let mut hasher = H2::default();
+    hasher.update(msg_wrapper);
+    let digest = hasher.finalize();
 
-impl FromHex for NewU864 {
-    type Error = FromHexError;
+    let e = Scalar::<S>::from_bytes(digest).unwrap();
 
-    fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, Self::Error> {
-        match <[u8; 64]>::from_hex(hex) {
-            Ok(x) => Ok(Self(x)),
-            Err(err) => Err(err),
+    loop {
+        // k = rand()
+        // (x_1, y_1) = g^kg
+        let k = Scalar::<S>::random(rng);
+        let p_1 = &Point::<P>::one() * &k;
+
+        // r = e + x_1
+        let r = &e + p_1.get_x();
+        if r == Scalar::zero() || &r + &k == Scalar::zero() {
+            continue;
         }
-    }
-}
 
-impl AsRef<[u8]> for NewU864 {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
+        // s = (1 + pri_key)^-1 * (k - r * sk)
+        let mut s1 = pri_key + &Scalar::<S>::one();
+        s1 = s1.inv();
 
-pub struct LocalSha3(pub Sha3);
+        let s2_1 = &r * pri_key;
 
-impl Debug for LocalSha3 {
-    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-        write!(f, "[{:?}]", &self)
-    }
-}
+        let s = &s1 * (&k - &s2_1);
 
-impl Default for LocalSha3 {
-    fn default() -> Self {
-        Self(Sha3::v512())
-    }
-}
-
-impl dislog_hal::Hasher for LocalSha3 {
-    type Output = NewU864;
-
-    fn update(&mut self, data: impl AsRef<[u8]>) {
-        use tiny_keccak::Hasher;
-
-        self.0.update(data.as_ref());
-    }
-
-    fn finalize(self) -> Self::Output {
-        use tiny_keccak::Hasher;
-
-        let mut output = [0u8; 64];
-        self.0.finalize(&mut output);
-        NewU864(output)
-    }
-}
-
-impl Splitable for LocalSha3
-where
-    LocalSha3: dislog_hal::Hasher,
-{
-    type Half = [u8; 32];
-
-    fn split_finalize(self) -> (Self::Half, Self::Half) {
-        use dislog_hal::Hasher;
-
-        let output = self.finalize().0;
-
-        let mut left = [0u8; 32];
-        left.clone_from_slice(&output[..32]);
-        let mut right = [0u8; 32];
-        right.clone_from_slice(&output[32..]);
-
-        (left, right)
-    }
-}
-
-type Sm2Keypair =
-    KeyPair<[u8; 32], LocalSha3, dislog_hal_sm2::PointInner, dislog_hal_sm2::ScalarInner>;
-
-lazy_static! {
-    static ref ECC_CTX: cryptape_sm::sm2::ecc::EccCtx = cryptape_sm::sm2::ecc::EccCtx::new();
-    static ref SM2_SIG_CTX: cryptape_sm::sm2::signature::SigCtx =
-        cryptape_sm::sm2::signature::SigCtx::new();
-}
-
-pub fn sm2_gen_keypair(seed: [u8; 32]) -> Result<Sm2Keypair, KeyPairError> {
-    Sm2Keypair::generate_from_seed(seed)
-}
-
-pub fn sm2_signature(msg: &[u8], keypair: &Sm2Keypair) -> Signature {
-    let tmp = keypair.get_secret_key().inner.to_bytes();
-    let sm2_pri_key = BigUint::from_bytes_le(&tmp[..]);
-
-    let pub_key = keypair.get_public_key().inner.to_bytes();
-    let sm2_pub_key = ECC_CTX.bytes_to_point(&pub_key.as_ref()[..]).unwrap();
-
-    let digest = SM2_SIG_CTX.hash("1234567812345678", &sm2_pub_key, msg);
-
-    SM2_SIG_CTX.sign_raw(&digest[..], &sm2_pri_key)
-}
-
-pub fn sm2_verify(msg: &[u8], pub_key: &Point<PointInner>, sig: &Signature) -> bool {
-    let sm2_pub_key;
-    match ECC_CTX.bytes_to_point(pub_key.inner.to_bytes().as_ref()) {
-        Ok(x) => {
-            sm2_pub_key = x;
+        if s == Scalar::zero() {
+            return Err(CryptoError::Sm2SigtureError);
         }
-        Err(_) => {
-            return false;
-        }
+
+        // Output the signature (r, s)
+        return Ok(Signature::<S> { r, s });
+    }
+}
+
+pub fn sm2_verify<
+    N: Default + AsRef<[u8]> + AsMut<[u8]> + Sized + Debug + ToHex + FromHex + PartialEq + Clone,
+    H2: Hasher<Output = N> + Default,
+    P: DisLogPoint<Scalar = S> + Bytes,
+    S: ScalarNumber<Point = P> + Bytes<BytesType = N>,
+>(
+    msg_wrapper: &[u8],
+    pub_key: &Point<P>,
+    sig: &Signature<S>,
+) -> bool {
+    let mut hasher = H2::default();
+    hasher.update(msg_wrapper);
+    let digest = hasher.finalize();
+
+    let e = Scalar::<S>::from_bytes(digest).unwrap();
+
+    let s = sig.get_s();
+    let r = sig.get_r();
+
+    // check r and s
+    if sig.get_r() == Scalar::zero() || sig.get_s() == Scalar::zero() {
+        return false;
     }
 
-    let digest = SM2_SIG_CTX.hash("1234567812345678", &sm2_pub_key, msg);
+    if &r + &s == Scalar::zero() {
+        return false;
+    }
 
-    SM2_SIG_CTX.verify_raw(&digest[..], &sm2_pub_key, sig)
+    let p_1 = (&s * &Point::<P>::one() + ((r + s) * pub_key)).get_x();
+
+    // check R == r?
+    &e + &p_1 == sig.get_r()
 }
