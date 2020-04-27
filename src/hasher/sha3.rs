@@ -16,7 +16,7 @@ impl Debug for NewU864 {
 
 impl PartialEq for NewU864 {
     fn eq(&self, other: &Self) -> bool {
-        self.0[..32] == other.0[..32] && self.0[32..] == other.0[32..]
+        self.0[..] == other.0[..]
     }
 }
 
