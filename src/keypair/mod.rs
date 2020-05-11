@@ -40,7 +40,7 @@ pub struct Keypair<
     public_key: Point<P>,
     #[serde(bound(deserialize = "N: SliceN"))]
     code: N,
-    #[serde(bound(deserialize = "H: Hasher + Default + Splitable<Half = N>"))]
+    #[serde(skip)]
     _hash: PhantomData<H>,
 }
 
