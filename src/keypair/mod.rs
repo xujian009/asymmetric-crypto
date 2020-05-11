@@ -1,6 +1,5 @@
 pub mod curve25519;
 pub mod ed25519;
-pub mod sm2;
 
 use crate::prelude::Splitable;
 use crate::CryptoError;

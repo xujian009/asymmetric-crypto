@@ -1,5 +1,5 @@
 use asymmetric_crypto::hasher::{sha3::Sha3, sm3::Sm3};
-use asymmetric_crypto::keypair::{sm2::KeyPairSm2, Keypair};
+use asymmetric_crypto::keypair::Keypair;
 use asymmetric_crypto::signature::sm2::{sm2_signature, sm2_verify};
 use byteorder::{BigEndian, WriteBytesExt};
 use core::convert::AsRef;
@@ -273,26 +273,4 @@ fn test_compat_libsm_sigture() {
         &sig_info,
     );
     assert_eq!(ans, false);
-}
-
-#[test]
-fn test_sm2_trait() {
-    use asymmetric_crypto::prelude::Keypair;
-
-    let data_b = [
-        34, 65, 213, 57, 9, 244, 187, 83, 43, 5, 198, 33, 107, 223, 3, 114, 255, 255, 255, 255,
-        255, 255, 255, 255, 255, 255, 255, 255, 254, 255, 255, 255,
-    ];
-
-    let mut rng = thread_rng();
-    let keypair_sm2: KeyPairSm2 = KeyPairSm2::generate(&mut rng).unwrap();
-
-    let sig_info = keypair_sm2
-        .sign::<Sm3, ThreadRng>(&data_b[..], &mut thread_rng())
-        .unwrap();
-
-    println!("sigture: {:?}", sig_info.to_bytes());
-
-    let ans = keypair_sm2.verify::<Sm3>(&data_b[..], &sig_info).unwrap();
-    assert_eq!(ans, true);
 }
