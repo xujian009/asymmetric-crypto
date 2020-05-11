@@ -1,14 +1,47 @@
-mod key_pair_gen;
-pub use key_pair_gen::KeyPair;
+pub mod hasher;
+pub mod keypair;
+pub mod signature;
 
-mod prelude;
+pub mod prelude;
 pub use prelude::Splitable;
 
-mod sigture;
-pub use sigture::{sm2_signature, sm2_verify};
+use core::fmt::Debug;
+use hex::{FromHex, FromHexError};
 
-mod hasher;
-pub use hasher::{Sha3, Sm3};
+pub struct NewU864(pub [u8; 64]);
+
+impl Debug for NewU864 {
+    fn fmt(&self, f: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+        let mut info = f.debug_list();
+        for i in 0..self.0.len() {
+            info.entry(&self.0[i]);
+        }
+        info.finish()
+    }
+}
+
+impl PartialEq for NewU864 {
+    fn eq(&self, other: &Self) -> bool {
+        self.0[..] == other.0[..]
+    }
+}
+
+impl FromHex for NewU864 {
+    type Error = FromHexError;
+
+    fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, Self::Error> {
+        match <[u8; 64]>::from_hex(hex) {
+            Ok(x) => Ok(Self(x)),
+            Err(err) => Err(err),
+        }
+    }
+}
+
+impl AsRef<[u8]> for NewU864 {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
 
 #[derive(Debug)]
 pub enum CryptoError {

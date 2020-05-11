@@ -1,31 +1,56 @@
+pub mod curve25519;
+pub mod ed25519;
+pub mod sm2;
+
 use crate::prelude::Splitable;
 use crate::CryptoError;
 use core::fmt::Debug;
 use core::marker::PhantomData;
-use dislog_hal::{Bytes, DisLogPoint, Hasher, Point, Scalar, ScalarNumber};
+use dislog_hal::{DisLogPoint, Hasher, Point, Scalar, ScalarNumber};
 use hex::{FromHex, ToHex};
 use rand::RngCore;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
-pub struct KeyPair<
-    N: Default + AsRef<[u8]> + AsMut<[u8]> + Sized + Debug + ToHex + FromHex + PartialEq + Clone,
+pub trait SliceN:
+    Default
+    + AsRef<[u8]>
+    + Debug
+    + ToHex
+    + FromHex
+    + PartialEq
+    + Clone
+    + Serialize
+    + for<'de> Deserialize<'de>
+{
+}
+
+impl SliceN for [u8; 32] {}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Keypair<
+    N: SliceN,
     H: Hasher + Default + Splitable<Half = N>,
     P: DisLogPoint<Scalar = S>,
-    S: ScalarNumber<Point = P> + Bytes<BytesType = N>,
+    S: ScalarNumber<Point = P>,
 > {
+    #[serde(bound(deserialize = "N: SliceN"))]
     seed: N,
+    #[serde(bound(deserialize = "S: ScalarNumber"))]
     secret_key: Scalar<S>,
+    #[serde(bound(deserialize = "P: DisLogPoint<Scalar = S>"))]
     public_key: Point<P>,
+    #[serde(bound(deserialize = "N: SliceN"))]
     code: N,
+    #[serde(bound(deserialize = "H: Hasher + Default + Splitable<Half = N>"))]
     _hash: PhantomData<H>,
 }
 
 impl<
-        N: Default + AsRef<[u8]> + AsMut<[u8]> + Sized + Debug + ToHex + FromHex + PartialEq + Clone,
+        N: SliceN + AsMut<[u8]>,
         H: Hasher + Default + Splitable<Half = N>,
         P: DisLogPoint<Scalar = S>,
-        S: ScalarNumber<Point = P> + Bytes<BytesType = N>,
-    > KeyPair<N, H, P, S>
+        S: ScalarNumber<Point = P>,
+    > Keypair<N, H, P, S>
 {
     pub fn generate<R: RngCore>(rng: &mut R) -> Result<Self, CryptoError> {
         let mut seed = N::default();
@@ -36,29 +61,32 @@ impl<
             Err(_) => Err(CryptoError::KeyPairGenError),
         }
     }
+}
 
+impl<
+        N: SliceN,
+        H: Hasher + Default + Splitable<Half = N>,
+        P: DisLogPoint<Scalar = S>,
+        S: ScalarNumber<Point = P>,
+    > Keypair<N, H, P, S>
+{
     pub fn generate_from_seed(seed: N) -> Result<Self, CryptoError> {
         let mut hasher = H::default();
         hasher.update(seed.as_ref());
         let (secret_key_x, code) = hasher.split_finalize();
 
-        let secret_key;
-        match S::from_bytes(secret_key_x) {
-            Ok(x) => {
-                secret_key = Scalar { inner: x };
-            }
+        let secret_key = match Scalar::<S>::from_bytes(secret_key_x.as_ref()) {
+            Ok(secret_key) => secret_key,
             Err(_) => return Err(CryptoError::KeyPairGenError),
-        }
+        };
 
-        if secret_key.inner == S::zero() {
+        if secret_key == Scalar::<S>::zero() {
             return Err(CryptoError::KeyPairGenError);
         }
 
         Ok(Self {
             seed,
-            public_key: Point {
-                inner: P::generator(),
-            } * &secret_key,
+            public_key: Point::<P>::generator() * &secret_key,
             secret_key,
             code,
             _hash: PhantomData,

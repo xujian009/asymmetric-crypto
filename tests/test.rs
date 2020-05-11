@@ -1,4 +1,6 @@
-use asymmetric_crypto::{sm2_signature, sm2_verify, KeyPair, Sha3, Sm3};
+use asymmetric_crypto::hasher::{sha3::Sha3, sm3::Sm3};
+use asymmetric_crypto::keypair::{sm2::KeyPairSm2, Keypair};
+use asymmetric_crypto::signature::sm2::{sm2_signature, sm2_verify};
 use byteorder::{BigEndian, WriteBytesExt};
 use core::convert::AsRef;
 use dislog_hal::{Bytes, Hasher, Point};
@@ -9,7 +11,7 @@ use rand::thread_rng;
 fn test_key_pair_curve25519_gen() {
     let mut rng = thread_rng();
 
-    let info_a = KeyPair::<
+    let info_a = Keypair::<
         [u8; 32],
         Sha3,
         dislog_hal_curve25519::PointInner,
@@ -23,7 +25,7 @@ fn test_key_pair_curve25519_gen() {
         187, 106, 9, 139, 107, 13, 195, 224, 202, 130, 3, 243, 167, 193, 182, 87, 81, 183, 243, 81,
         74, 222, 16, 87, 21, 206, 127, 54, 32, 51, 18, 110,
     ];
-    let info_b = KeyPair::<
+    let info_b = Keypair::<
         [u8; 32],
         Sha3,
         dislog_hal_curve25519::PointInner,
@@ -39,14 +41,14 @@ fn test_key_pair_curve25519_gen() {
         ]
     );
     assert_eq!(
-        info_b.get_secret_key().inner.to_bytes(),
+        info_b.get_secret_key().to_bytes(),
         [
             87, 7, 77, 176, 244, 182, 94, 31, 180, 131, 71, 165, 24, 196, 136, 15, 252, 125, 185,
             230, 56, 228, 42, 161, 117, 43, 81, 248, 50, 5, 246, 13
         ]
     );
     assert_eq!(
-        info_b.get_public_key().inner.to_bytes(),
+        info_b.get_public_key().to_bytes(),
         [
             46, 170, 200, 38, 199, 246, 214, 187, 69, 5, 152, 75, 233, 6, 232, 150, 174, 190, 32,
             251, 147, 169, 7, 163, 11, 84, 164, 36, 35, 57, 2, 96
@@ -65,7 +67,7 @@ fn test_key_pair_curve25519_gen() {
 fn test_key_pair_sm2_gen() {
     let mut rng = thread_rng();
 
-    let info_a = KeyPair::<
+    let info_a = Keypair::<
         [u8; 32],
         Sha3,
         dislog_hal_sm2::PointInner,
@@ -79,7 +81,7 @@ fn test_key_pair_sm2_gen() {
         34, 65, 213, 57, 9, 244, 187, 83, 43, 5, 198, 33, 107, 223, 3, 114, 255, 255, 255, 255,
         255, 255, 255, 255, 255, 255, 255, 255, 254, 255, 255, 255,
     ];
-    let info_b = KeyPair::<
+    let info_b = Keypair::<
         [u8; 32],
         Sha3,
         dislog_hal_sm2::PointInner,
@@ -95,14 +97,14 @@ fn test_key_pair_sm2_gen() {
         ]
     );
     assert_eq!(
-        info_b.get_secret_key().inner.to_bytes().as_ref(),
+        info_b.get_secret_key().to_bytes().as_ref(),
         &[
             100, 228, 238, 48, 82, 171, 142, 44, 136, 11, 25, 200, 143, 219, 38, 151, 240, 198,
             203, 172, 209, 197, 254, 44, 122, 177, 156, 57, 38, 227, 43, 111
         ][..]
     );
     assert_eq!(
-        info_b.get_public_key().inner.to_bytes().as_ref(),
+        info_b.get_public_key().to_bytes().as_ref(),
         &[
             3, 31, 15, 213, 251, 207, 39, 245, 108, 63, 234, 202, 80, 139, 13, 202, 236, 135, 128,
             216, 113, 219, 223, 148, 108, 142, 131, 166, 167, 255, 152, 114, 125
@@ -124,7 +126,7 @@ fn test_sm2_sigture() {
         34, 65, 213, 57, 9, 244, 187, 83, 43, 5, 198, 33, 107, 223, 3, 114, 255, 255, 255, 255,
         255, 255, 255, 255, 255, 255, 255, 255, 254, 255, 255, 255,
     ];
-    let info_b = KeyPair::<
+    let info_b = Keypair::<
         [u8; 32],
         Sha3,
         dislog_hal_sm2::PointInner,
@@ -134,13 +136,15 @@ fn test_sm2_sigture() {
 
     let text = [244, 187, 83, 43, 5, 198, 33];
 
+    let mut hasher_1: Sm3 = Sm3::default();
+    hasher_1.update(&text[..]);
     let sig_info = sm2_signature::<
         [u8; 32],
         Sm3,
         dislog_hal_sm2::PointInner,
         dislog_hal_sm2::ScalarInner,
         ThreadRng,
-    >(&text[..], &info_b.get_secret_key(), &mut rng)
+    >(hasher_1, &info_b.get_secret_key(), &mut rng)
     .unwrap();
 
     println!("sigture: {:?}", sig_info);
@@ -219,7 +223,7 @@ fn test_compat_libsm_sigture() {
         34, 65, 213, 57, 9, 244, 187, 83, 43, 5, 198, 33, 107, 223, 3, 114, 255, 255, 255, 255,
         255, 255, 255, 255, 255, 255, 255, 255, 254, 255, 255, 255,
     ];
-    let info_b = KeyPair::<
+    let info_b = Keypair::<
         [u8; 32],
         Sha3,
         dislog_hal_sm2::PointInner,
@@ -231,13 +235,15 @@ fn test_compat_libsm_sigture() {
 
     let msg_wrapper = compat_libsm_hash(&text, &info_b.get_public_key());
 
+    let mut hasher_2: Sm3 = Sm3::default();
+    hasher_2.update(&msg_wrapper[..]);
     let sig_info = sm2_signature::<
         [u8; 32],
         Sm3,
         dislog_hal_sm2::PointInner,
         dislog_hal_sm2::ScalarInner,
         ThreadRng,
-    >(&msg_wrapper[..], &info_b.get_secret_key(), &mut rng)
+    >(hasher_2, &info_b.get_secret_key(), &mut rng)
     .unwrap();
 
     println!("sigture: {:?}", sig_info);
@@ -259,4 +265,26 @@ fn test_compat_libsm_sigture() {
         &sig_info,
     );
     assert_eq!(ans, false);
+}
+
+#[test]
+fn test_sm2_trait() {
+    use asymmetric_crypto::prelude::Keypair;
+
+    let data_b = [
+        34, 65, 213, 57, 9, 244, 187, 83, 43, 5, 198, 33, 107, 223, 3, 114, 255, 255, 255, 255,
+        255, 255, 255, 255, 255, 255, 255, 255, 254, 255, 255, 255,
+    ];
+
+    let mut rng = thread_rng();
+    let keypair_sm2: KeyPairSm2 = KeyPairSm2::generate(&mut rng).unwrap();
+
+    let sig_info = keypair_sm2
+        .sign::<Sm3, ThreadRng>(&data_b[..], &mut thread_rng())
+        .unwrap();
+
+    println!("sigture: {:?}", sig_info.to_bytes());
+
+    let ans = keypair_sm2.verify::<Sm3>(&data_b[..], &sig_info).unwrap();
+    assert_eq!(ans, true);
 }
