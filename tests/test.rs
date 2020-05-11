@@ -3,7 +3,7 @@ use asymmetric_crypto::keypair::Keypair;
 use asymmetric_crypto::signature::sm2::{sm2_signature, sm2_verify};
 use byteorder::{BigEndian, WriteBytesExt};
 use core::convert::AsRef;
-use dislog_hal::{Bytes, Hasher, Point};
+use dislog_hal::{Hasher, Point};
 use rand::rngs::ThreadRng;
 use rand::thread_rng;
 
