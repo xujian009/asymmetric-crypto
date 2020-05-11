@@ -149,8 +149,10 @@ fn test_sm2_sigture() {
 
     println!("sigture: {:?}", sig_info);
 
+    let mut hasher_2: Sm3 = Sm3::default();
+    hasher_2.update(&text[..]);
     let ans = sm2_verify::<[u8; 32], Sm3, dislog_hal_sm2::PointInner, dislog_hal_sm2::ScalarInner>(
-        &text[..],
+        hasher_2,
         &info_b.get_public_key(),
         &sig_info,
     );
@@ -160,8 +162,10 @@ fn test_sm2_sigture() {
     text_err.copy_from_slice(&Vec::from(&text[..])[..]);
     text_err[0] += 1;
 
+    let mut hasher_2: Sm3 = Sm3::default();
+    hasher_2.update(&text_err[..]);
     let ans = sm2_verify::<[u8; 32], Sm3, dislog_hal_sm2::PointInner, dislog_hal_sm2::ScalarInner>(
-        &text_err[..],
+        hasher_2,
         &info_b.get_public_key(),
         &sig_info,
     );
@@ -248,8 +252,10 @@ fn test_compat_libsm_sigture() {
 
     println!("sigture: {:?}", sig_info);
 
+    let mut hasher_2: Sm3 = Sm3::default();
+    hasher_2.update(&msg_wrapper[..]);
     let ans = sm2_verify::<[u8; 32], Sm3, dislog_hal_sm2::PointInner, dislog_hal_sm2::ScalarInner>(
-        &msg_wrapper[..],
+        hasher_2,
         &info_b.get_public_key(),
         &sig_info,
     );
@@ -259,8 +265,10 @@ fn test_compat_libsm_sigture() {
     msg_wrapper_err.copy_from_slice(&Vec::from(&msg_wrapper[..])[..]);
     msg_wrapper_err[0] += 1;
 
+    let mut hasher_2: Sm3 = Sm3::default();
+    hasher_2.update(&msg_wrapper_err[..]);
     let ans = sm2_verify::<[u8; 32], Sm3, dislog_hal_sm2::PointInner, dislog_hal_sm2::ScalarInner>(
-        &msg_wrapper_err[..],
+        hasher_2,
         &info_b.get_public_key(),
         &sig_info,
     );

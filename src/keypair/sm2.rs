@@ -50,8 +50,10 @@ impl crate::prelude::Keypair for KeyPairSm2 {
         msg: &[u8],
         sig: &Self::Signature,
     ) -> Result<bool, CryptoError> {
+        let mut hasher = H::default();
+        hasher.update(msg);
         Ok(signature::sm2::sm2_verify::<_, H, _, _>(
-            msg,
+            hasher,
             &self.0.get_public_key(),
             sig,
         ))

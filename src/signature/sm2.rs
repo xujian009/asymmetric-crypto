@@ -96,12 +96,10 @@ pub fn sm2_verify<
     P: DisLogPoint<Scalar = S> + Bytes,
     S: ScalarNumber<Point = P> + Bytes<BytesType = N>,
 >(
-    msg_wrapper: &[u8],
+    hasher: H,
     pub_key: &Point<P>,
     sig: &Signature<S>,
 ) -> bool {
-    let mut hasher = H::default();
-    hasher.update(msg_wrapper);
     let digest = hasher.finalize();
 
     let e = Scalar::<S>::from_bytes(digest.as_ref()).unwrap();
