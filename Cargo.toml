@@ -12,10 +12,12 @@ rand = "0.7.3"
 dislog-hal = { git = "https://github.com/Yinet-project/dislog-hal"}
 tiny-keccak = { version = "2.0.0", features = ["sha3"] }
 libsm = { git = "https://github.com/citahub/libsm"}
+serde = { version = "1.0", features = ["derive"] }
+
 
 [dev-dependencies]
-dislog-hal-curve25519 = { git = "https://github.com/Yinet-project/dislog-hal-curve25519"}
 dislog-hal-sm2 = { git = "https://github.com/Yinet-project/dislog-hal-sm2"}
+dislog-hal-curve25519 = { git = "https://github.com/Yinet-project/dislog-hal-curve25519"}
 byteorder = "1"
 
 [dev-dependencies.cargo-husky]

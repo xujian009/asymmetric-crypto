@@ -1,13 +1,39 @@
 use crate::CryptoError;
+use crate::NewU864;
+use core::convert::AsRef;
 use core::fmt::Debug;
 use dislog_hal::{Bytes, DisLogPoint, Hasher, Point, Scalar, ScalarNumber};
 use hex::{FromHex, ToHex};
 use rand::RngCore;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Signature<S: ScalarNumber> {
+    #[serde(bound(deserialize = "S: ScalarNumber"))]
     r: Scalar<S>,
+    #[serde(bound(deserialize = "S: ScalarNumber"))]
     s: Scalar<S>,
+}
+
+impl<S: ScalarNumber> Bytes for Signature<S> {
+    type BytesType = NewU864;
+
+    type Error = CryptoError;
+
+    fn from_bytes(bytes: &[u8]) -> Result<Self, CryptoError> {
+        assert_eq!(bytes.len(), 64);
+        Ok(Self {
+            r: Scalar::<S>::from_bytes(&bytes[..32]).unwrap(),
+            s: Scalar::<S>::from_bytes(&bytes[32..]).unwrap(),
+        })
+    }
+
+    fn to_bytes(&self) -> Self::BytesType {
+        let mut ret = [0u8; 64];
+        ret[..32].clone_from_slice(self.r.to_bytes().as_ref());
+        ret[32..].clone_from_slice(self.s.to_bytes().as_ref());
+        NewU864(ret)
+    }
 }
 
 impl<S: ScalarNumber> Signature<S> {
@@ -21,21 +47,19 @@ impl<S: ScalarNumber> Signature<S> {
 }
 
 pub fn sm2_signature<
-    N: Default + AsRef<[u8]> + AsMut<[u8]> + Sized + Debug + ToHex + FromHex + PartialEq + Clone,
-    H2: Hasher<Output = N> + Default,
+    N: Default + AsRef<[u8]> + Debug + ToHex + FromHex + PartialEq + Clone,
+    H: Hasher<Output = N> + Default,
     P: DisLogPoint<Scalar = S> + Bytes,
     S: ScalarNumber<Point = P> + Bytes<BytesType = N>,
     R: RngCore,
 >(
-    msg_wrapper: &[u8],
+    hasher: H,
     pri_key: &Scalar<S>,
     rng: &mut R,
 ) -> Result<Signature<S>, CryptoError> {
-    let mut hasher = H2::default();
-    hasher.update(msg_wrapper);
     let digest = hasher.finalize();
 
-    let e = Scalar::<S>::from_bytes(digest).unwrap();
+    let e = Scalar::<S>::from_bytes(digest.as_ref()).unwrap();
 
     loop {
         // k = rand()
@@ -67,20 +91,18 @@ pub fn sm2_signature<
 }
 
 pub fn sm2_verify<
-    N: Default + AsRef<[u8]> + AsMut<[u8]> + Sized + Debug + ToHex + FromHex + PartialEq + Clone,
-    H2: Hasher<Output = N> + Default,
+    N: Default + AsRef<[u8]> + Debug + ToHex + FromHex + PartialEq + Clone,
+    H: Hasher<Output = N> + Default,
     P: DisLogPoint<Scalar = S> + Bytes,
     S: ScalarNumber<Point = P> + Bytes<BytesType = N>,
 >(
-    msg_wrapper: &[u8],
+    hasher: H,
     pub_key: &Point<P>,
     sig: &Signature<S>,
 ) -> bool {
-    let mut hasher = H2::default();
-    hasher.update(msg_wrapper);
     let digest = hasher.finalize();
 
-    let e = Scalar::<S>::from_bytes(digest).unwrap();
+    let e = Scalar::<S>::from_bytes(digest.as_ref()).unwrap();
 
     let s = sig.get_s();
     let r = sig.get_r();
