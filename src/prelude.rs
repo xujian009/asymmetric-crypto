@@ -34,7 +34,7 @@ pub trait Keypair: Serialize + for<'de> Deserialize<'de> {
         rng: &mut R,
     ) -> Result<Self::Signature, CryptoError>;
 
-    fn gen_certificate(&self) -> Self::Certificate;
+    fn get_certificate(&self) -> Self::Certificate;
 }
 
 pub trait Certificate: Serialize + for<'de> Deserialize<'de> + Bytes {
