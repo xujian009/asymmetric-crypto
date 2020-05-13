@@ -22,6 +22,8 @@ pub trait Keypair: Serialize + for<'de> Deserialize<'de> {
 
     type Signature: Serialize + for<'de> Deserialize<'de> + Bytes;
 
+    type Certificate: Certificate;
+
     fn generate<R: RngCore>(rng: &mut R) -> Result<Self, CryptoError>;
 
     fn generate_from_seed(seed: Self::Seed) -> Result<Self, CryptoError>;
@@ -32,9 +34,15 @@ pub trait Keypair: Serialize + for<'de> Deserialize<'de> {
         rng: &mut R,
     ) -> Result<Self::Signature, CryptoError>;
 
+    fn get_certificate(&self) -> Self::Certificate;
+}
+
+pub trait Certificate: Serialize + for<'de> Deserialize<'de> + Bytes {
+    type Signature;
+
     fn verify<H: Default + Hasher<Output = [u8; 32]> + Hasher>(
         &self,
         msg: &[u8],
-        sig: &Self::Signature,
-    ) -> Result<bool, CryptoError>;
+        signature: &Self::Signature,
+    ) -> bool;
 }
