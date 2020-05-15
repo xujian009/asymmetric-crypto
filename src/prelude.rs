@@ -11,7 +11,7 @@ pub trait Splitable {
     fn split_finalize(self) -> (Self::Half, Self::Half);
 }
 
-pub trait Keypair: Serialize + for<'de> Deserialize<'de> {
+pub trait Keypair: Debug + Clone + Serialize + for<'de> Deserialize<'de> {
     type Seed;
 
     type Secret;
