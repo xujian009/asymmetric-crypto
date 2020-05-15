@@ -49,6 +49,24 @@ impl<
         H: Hasher + Default + Splitable<Half = N>,
         P: DisLogPoint<Scalar = S>,
         S: ScalarNumber<Point = P>,
+    > Clone for Keypair<N, H, P, S>
+{
+    fn clone(&self) -> Self {
+        Self {
+            seed: self.seed.clone(),
+            secret_key: self.secret_key.clone(),
+            public_key: self.public_key.clone(),
+            code: self.code.clone(),
+            _hash: PhantomData,
+        }
+    }
+}
+
+impl<
+        N: SliceN + AsMut<[u8]>,
+        H: Hasher + Default + Splitable<Half = N>,
+        P: DisLogPoint<Scalar = S>,
+        S: ScalarNumber<Point = P>,
     > Keypair<N, H, P, S>
 {
     pub fn generate<R: RngCore>(rng: &mut R) -> Result<Self, CryptoError> {
