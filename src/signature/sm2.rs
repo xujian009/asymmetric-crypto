@@ -36,6 +36,15 @@ impl<S: ScalarNumber> Bytes for Signature<S> {
     }
 }
 
+impl<S: ScalarNumber> Default for Signature<S> {
+    fn default() -> Self {
+        Self {
+            r: Scalar::<S>::default(),
+            s: Scalar::<S>::default(),
+        }
+    }
+}
+
 impl<S: ScalarNumber> Signature<S> {
     pub fn get_r(&self) -> Scalar<S> {
         self.r.clone()

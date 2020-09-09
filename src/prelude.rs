@@ -11,7 +11,7 @@ pub trait Splitable {
     fn split_finalize(self) -> (Self::Half, Self::Half);
 }
 
-pub trait Keypair: Serialize + for<'de> Deserialize<'de> {
+pub trait Keypair: Default + Bytes + Debug + Clone + Serialize + for<'de> Deserialize<'de> {
     type Seed;
 
     type Secret;
@@ -37,7 +37,7 @@ pub trait Keypair: Serialize + for<'de> Deserialize<'de> {
     fn get_certificate(&self) -> Self::Certificate;
 }
 
-pub trait Certificate: Serialize + for<'de> Deserialize<'de> + Bytes {
+pub trait Certificate: Default + Serialize + for<'de> Deserialize<'de> + Bytes {
     type Signature;
 
     fn verify<H: Default + Hasher<Output = [u8; 32]> + Hasher>(

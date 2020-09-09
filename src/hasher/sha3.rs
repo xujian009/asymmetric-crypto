@@ -2,6 +2,7 @@ use crate::prelude::Splitable;
 use crate::NewU864;
 use core::fmt::Debug;
 
+#[derive(Clone)]
 pub struct Sha3(pub tiny_keccak::Sha3);
 
 impl Debug for Sha3 {
